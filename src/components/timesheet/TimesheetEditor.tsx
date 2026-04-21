@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Save, Send, RefreshCw, AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 import { format, addDays } from 'date-fns'
@@ -10,6 +10,7 @@ import { cn, formatHours, getWeekDays } from '@/lib/utils'
 import toast from 'react-hot-toast'
 
 interface Project { id: string; name: string; code: string; color: string }
+
 interface Entry {
   id?: string
   projectId: string
@@ -18,13 +19,18 @@ interface Entry {
   description: string
   isBillable: boolean
 }
+
+interface TimesheetEntry extends Entry {
+  project: Project
+}
+
 interface Timesheet {
   id: string
   status: string
   totalHours: number
   notes: string | null
   weekStart: string
-  entries: Array<Entry & { project: Project }>
+  entries: TimesheetEntry[]
 }
 
 interface TimesheetEditorProps {
@@ -35,22 +41,20 @@ interface TimesheetEditorProps {
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
-  const [timesheet, setTimesheet]   = useState<Timesheet | null>(null)
-  const [entries, setEntries]       = useState<Entry[]>([])
-  const [notes, setNotes]           = useState('')
-  const [loading, setLoading]       = useState(true)
-  const [saving, setSaving]         = useState(false)
+  const [timesheet, setTimesheet]     = useState<Timesheet | null>(null)
+  const [entries, setEntries]         = useState<Entry[]>([])
+  const [notes, setNotes]             = useState('')
+  const [loading, setLoading]         = useState(true)
+  const [saving, setSaving]           = useState(false)
   const [submitModal, setSubmitModal] = useState(false)
 
   const weekDays = getWeekDays(weekStart)
   const readOnly = timesheet ? !['DRAFT', 'REJECTED'].includes(timesheet.status) : false
 
-  // Load or create timesheet for this week
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
-        // Fetch own timesheets (no userId param — API defaults to current user)
         const listRes = await fetch('/api/timesheets')
         if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`)
         const listText = await listRes.text()
@@ -72,7 +76,6 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
           })))
           setNotes(existing.notes ?? '')
         } else {
-          // Create a fresh DRAFT for this week
           const createRes = await fetch('/api/timesheets', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -80,7 +83,7 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
           })
           if (!createRes.ok) throw new Error(`Create failed: HTTP ${createRes.status}`)
           const createText = await createRes.text()
-          const created = createText ? JSON.parse(createText) : null
+          const created: Timesheet | null = createText ? JSON.parse(createText) : null
           if (created) setTimesheet(created)
           setEntries([])
           setNotes('')
@@ -106,7 +109,7 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
     }])
   }
 
-  function updateEntry(index: number, field: string, value: any) {
+  function updateEntry(index: number, field: string, value: string | number | boolean) {
     setEntries(prev => prev.map((e, i) => i === index ? { ...e, [field]: value } : e))
   }
 
@@ -123,8 +126,9 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ entries, notes }),
       })
-      const updated = await res.json()
-      setTimesheet(updated)
+      const text = await res.text()
+      const updated: Timesheet = text ? JSON.parse(text) : null
+      if (updated) setTimesheet(updated)
       toast.success('Timesheet saved')
     } catch {
       toast.error('Failed to save')
@@ -139,8 +143,9 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
     setSaving(true)
     try {
       const res = await fetch(`/api/timesheets/${timesheet.id}/submit`, { method: 'POST' })
-      const updated = await res.json()
-      setTimesheet(updated)
+      const text = await res.text()
+      const updated: Timesheet = text ? JSON.parse(text) : null
+      if (updated) setTimesheet(updated)
       setSubmitModal(false)
       toast.success('Timesheet submitted for approval!')
     } catch {
@@ -178,7 +183,6 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
             {timesheet && <StatusBadge status={timesheet.status} />}
           </div>
 
-          {/* Totals */}
           <div className="flex items-center gap-4">
             <div className="text-right hidden sm:block">
               <p className="text-xs text-gray-400">Total</p>
@@ -225,9 +229,7 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
             <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-sm font-semibold text-red-700 dark:text-red-300">Timesheet rejected</p>
-              <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                Please update and resubmit.
-              </p>
+              <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">Please update and resubmit.</p>
             </div>
           </motion.div>
         )}
@@ -243,10 +245,10 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
         )}
 
         {/* Column headers */}
-        <div className="grid grid-cols-[140px_1fr_100px_36px] gap-2 px-4 py-2 
+        <div className="grid grid-cols-[140px_1fr_100px_36px] gap-2 px-4 py-2
                         bg-gray-50 dark:bg-gray-800/50 border-b border-gray-100 dark:border-gray-800">
           <p className="table-header">Day</p>
-          <p className="table-header">Project & Description</p>
+          <p className="table-header">Project &amp; Description</p>
           <p className="table-header text-center">Hours</p>
           <div />
         </div>
@@ -257,12 +259,11 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
             const dayEntries = entries.filter(e =>
               new Date(e.date).toDateString() === day.toDateString()
             )
-            const dayTotal = dayEntries.reduce((s, e) => s + (e.hours || 0), 0)
-            const isWeekend = dayIdx >= 5
+            const dayTotal   = dayEntries.reduce((s, e) => s + (e.hours || 0), 0)
+            const isWeekend  = dayIdx >= 5
 
             return (
               <div key={dayIdx} className="px-4 py-2">
-                {/* Day header */}
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-500 dark:text-gray-400 w-20">
@@ -284,8 +285,8 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
                     {!readOnly && (
                       <button
                         onClick={() => addEntry(dayIdx)}
-                        className="text-xs flex items-center gap-1 text-brand-600 dark:text-brand-400 
-                                   hover:text-brand-700 px-2 py-1 rounded-lg hover:bg-brand-50 
+                        className="text-xs flex items-center gap-1 text-brand-600 dark:text-brand-400
+                                   hover:text-brand-700 px-2 py-1 rounded-lg hover:bg-brand-50
                                    dark:hover:bg-brand-950/30 transition-colors"
                       >
                         <Plus className="w-3 h-3" />
@@ -295,7 +296,6 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
                   </div>
                 </div>
 
-                {/* Entries for this day */}
                 <AnimatePresence initial={false}>
                   {dayEntries.length === 0 ? (
                     <p className="text-xs text-gray-300 dark:text-gray-700 py-1 pl-2 italic">
@@ -331,7 +331,7 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
           })}
         </div>
 
-        {/* Footer notes */}
+        {/* Notes */}
         <div className="p-4 border-t border-gray-100 dark:border-gray-800">
           <label className="label">Notes (optional)</label>
           <textarea
@@ -345,7 +345,7 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
         </div>
 
         {/* Summary bar */}
-        <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50 
+        <div className="flex items-center gap-4 px-4 py-3 bg-gray-50 dark:bg-gray-800/50
                         border-t border-gray-100 dark:border-gray-800 text-xs">
           <span className="text-gray-500">
             {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
@@ -370,7 +370,7 @@ export function TimesheetEditor({ weekStart, projects }: TimesheetEditorProps) {
         </div>
       </div>
 
-      {/* Submit confirmation modal */}
+      {/* Submit modal */}
       <Modal
         open={submitModal}
         onClose={() => setSubmitModal(false)}

@@ -1,6 +1,4 @@
 'use client'
-import { useSession } from 'next-auth/react'
-import { Bell } from 'lucide-react'
 import { format } from 'date-fns'
 
 interface HeaderProps {
@@ -10,8 +8,6 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle, actions }: HeaderProps) {
-  const { data: session } = useSession()
-
   return (
     <header className="flex items-center justify-between mb-6 pt-1">
       <div>

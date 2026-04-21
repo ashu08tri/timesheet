@@ -1,7 +1,7 @@
 'use client'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
+  PieChart, Pie, Cell,
 } from 'recharts'
 import { motion } from 'framer-motion'
 
@@ -52,13 +52,7 @@ export function WeeklyBarChart({ data }: WeeklyBarChartProps) {
             formatter={(v: number) => [`${v}h`, 'Hours']}
             cursor={{ fill: 'rgba(99,102,241,0.08)', radius: 8 }}
           />
-          <Bar
-            dataKey="hours"
-            fill="#6366f1"
-            radius={[6, 6, 0, 0]}
-          />
-          {/* 40h reference line */}
-          <Bar dataKey={() => 0} stroke="#e5e7eb" fill="transparent" />
+          <Bar dataKey="hours" fill="#6366f1" radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </motion.div>
@@ -120,16 +114,9 @@ export function ProjectPieChart({ data }: ProjectPieChartProps) {
           <div className="flex-1 space-y-2 min-w-0">
             {data.map((item, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ background: item.color }}
-                />
-                <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">
-                  {item.name}
-                </span>
-                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 tabular-nums">
-                  {item.hours}h
-                </span>
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: item.color }} />
+                <span className="text-xs text-gray-600 dark:text-gray-400 truncate flex-1">{item.name}</span>
+                <span className="text-xs font-bold text-gray-700 dark:text-gray-300 tabular-nums">{item.hours}h</span>
                 <span className="text-xs text-gray-400 tabular-nums w-8 text-right">
                   {total > 0 ? Math.round((item.hours / total) * 100) : 0}%
                 </span>

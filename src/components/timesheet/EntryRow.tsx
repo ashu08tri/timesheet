@@ -23,7 +23,7 @@ interface EntryRowProps {
   dayLabel: string
   isWeekend?: boolean
   readOnly?: boolean
-  onUpdate: (field: string, value: any) => void
+  onUpdate: (field: string, value: string | number | boolean) => void
   onDelete: () => void
 }
 
@@ -37,7 +37,6 @@ export function EntryRow({ entry, projects, dayLabel, isWeekend, readOnly, onUpd
       focused && 'bg-brand-50/50 dark:bg-brand-950/20',
       isWeekend && 'opacity-60',
     )}>
-      {/* Day label */}
       <div className="flex items-center gap-2">
         <div
           className="w-1.5 h-8 rounded-full shrink-0"
@@ -51,7 +50,6 @@ export function EntryRow({ entry, projects, dayLabel, isWeekend, readOnly, onUpd
         </div>
       </div>
 
-      {/* Project + description */}
       <div className="flex items-center gap-2 min-w-0">
         {readOnly ? (
           <span className="text-sm text-gray-700 dark:text-gray-300">{selectedProject?.name}</span>
@@ -82,7 +80,6 @@ export function EntryRow({ entry, projects, dayLabel, isWeekend, readOnly, onUpd
         />
       </div>
 
-      {/* Hours + billable */}
       <div className="flex items-center gap-1.5">
         <input
           type="number"
@@ -116,12 +113,11 @@ export function EntryRow({ entry, projects, dayLabel, isWeekend, readOnly, onUpd
         </button>
       </div>
 
-      {/* Delete */}
       {!readOnly && (
         <button
           type="button"
           onClick={onDelete}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-300 
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-300
                      hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />

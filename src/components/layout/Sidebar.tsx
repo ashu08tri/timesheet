@@ -5,17 +5,17 @@ import { useSession, signOut } from 'next-auth/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Clock, CheckSquare, BarChart2,
-  Settings, LogOut, Users, ChevronRight, Menu, X
+  LogOut, Users, ChevronRight, Menu, X,
 } from 'lucide-react'
 import { cn, getInitials, getRoleColor } from '@/lib/utils'
 import { useState } from 'react'
 
 const navItems = [
-  { href: '/dashboard',   label: 'Dashboard',  icon: LayoutDashboard, roles: ['EMPLOYEE','MANAGER','ADMIN'] },
-  { href: '/timesheets',  label: 'Timesheets', icon: Clock,            roles: ['EMPLOYEE','MANAGER','ADMIN'] },
-  { href: '/approvals',   label: 'Approvals',  icon: CheckSquare,      roles: ['MANAGER','ADMIN'] },
-  { href: '/reports',     label: 'Reports',    icon: BarChart2,        roles: ['MANAGER','ADMIN'] },
-  { href: '/admin',       label: 'Admin',      icon: Users,            roles: ['ADMIN'] },
+  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, roles: ['EMPLOYEE','MANAGER','ADMIN'] },
+  { href: '/timesheets', label: 'Timesheets', icon: Clock,            roles: ['EMPLOYEE','MANAGER','ADMIN'] },
+  { href: '/approvals',  label: 'Approvals',  icon: CheckSquare,      roles: ['MANAGER','ADMIN'] },
+  { href: '/reports',    label: 'Reports',    icon: BarChart2,        roles: ['MANAGER','ADMIN'] },
+  { href: '/admin',      label: 'Admin',      icon: Users,            roles: ['ADMIN'] },
 ]
 
 export function Sidebar() {
@@ -27,7 +27,6 @@ export function Sidebar() {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="p-5 border-b border-gray-100 dark:border-gray-800">
         <Link href="/dashboard" className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center shadow-sm">
@@ -39,7 +38,6 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
         <p className="text-[10px] font-bold text-gray-400 dark:text-gray-600 uppercase tracking-widest px-3 py-2">
           Navigation
@@ -55,21 +53,15 @@ export function Sidebar() {
             >
               <item.icon className="w-4 h-4 shrink-0" />
               <span className="flex-1">{item.label}</span>
-              {isActive && (
-                <ChevronRight className="w-3 h-3 opacity-50" />
-              )}
+              {isActive && <ChevronRight className="w-3 h-3 opacity-50" />}
             </Link>
           )
         })}
       </nav>
 
-      {/* User section */}
       <div className="p-3 border-t border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800 mb-1">
-          <div className={cn(
-            'w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0',
-            'bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300'
-          )}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 bg-brand-100 text-brand-700 dark:bg-brand-900 dark:text-brand-300">
             {getInitials(session?.user?.name ?? 'U')}
           </div>
           <div className="flex-1 min-w-0">
@@ -94,23 +86,20 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] shrink-0 
-                        bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 
+      <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] shrink-0
+                        bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800
                         fixed inset-y-0 left-0 z-30">
         <SidebarContent />
       </aside>
 
-      {/* Mobile toggle */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-white dark:bg-gray-900 
+        className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-white dark:bg-gray-900
                    border border-gray-200 dark:border-gray-800 rounded-xl shadow-sm"
       >
         <Menu className="w-5 h-5 text-gray-600 dark:text-gray-300" />
       </button>
 
-      {/* Mobile drawer */}
       <AnimatePresence>
         {mobileOpen && (
           <>
@@ -126,7 +115,7 @@ export function Sidebar() {
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="lg:hidden fixed inset-y-0 left-0 w-72 z-50 
+              className="lg:hidden fixed inset-y-0 left-0 w-72 z-50
                          bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800"
             >
               <button
