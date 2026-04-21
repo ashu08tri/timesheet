@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Plus, Users, FolderOpen, Pencil, Shield } from 'lucide-react'
+import { Plus, Users, FolderOpen } from 'lucide-react'
 import { Header } from '@/components/layout/Header'
 import { Modal } from '@/components/ui/Modal'
 import { PageLoader } from '@/components/ui/LoadingSpinner'
@@ -13,27 +13,45 @@ interface Project { id: string; name: string; code: string; color: string; isAct
 
 const PROJECT_COLORS = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6']
 
+interface UserFormState {
+  name: string
+  email: string
+  password: string
+  role: string
+  department: string
+}
+
+interface ProjectFormState {
+  name: string
+  code: string
+  description: string
+  color: string
+}
+
 export default function AdminPage() {
   const [users, setUsers]       = useState<User[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading]   = useState(true)
   const [tab, setTab]           = useState<'users' | 'projects'>('users')
 
-  // User form
   const [userModal, setUserModal] = useState(false)
-  const [userForm, setUserForm]   = useState({ name:'', email:'', password:'', role:'EMPLOYEE', department:'' })
+  const [userForm, setUserForm]   = useState<UserFormState>({ name:'', email:'', password:'', role:'EMPLOYEE', department:'' })
   const [saving, setSaving]       = useState(false)
 
-  // Project form
   const [projModal, setProjModal] = useState(false)
-  const [projForm, setProjForm]   = useState({ name:'', code:'', description:'', color:'#6366f1' })
+  const [projForm, setProjForm]   = useState<ProjectFormState>({ name:'', code:'', description:'', color:'#6366f1' })
 
   useEffect(() => {
     async function load() {
-      const [uRes, pRes] = await Promise.all([fetch('/api/users'), fetch('/api/projects')])
-      setUsers(await uRes.json())
-      setProjects(await pRes.json())
-      setLoading(false)
+      try {
+        const [uRes, pRes] = await Promise.all([fetch('/api/users'), fetch('/api/projects')])
+        if (uRes.ok) setUsers(await uRes.json())
+        if (pRes.ok) setProjects(await pRes.json())
+      } catch (err) {
+        console.error('Admin load error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
@@ -52,8 +70,8 @@ export default function AdminPage() {
       setUserForm({ name:'', email:'', password:'', role:'EMPLOYEE', department:'' })
       toast.success('User created!')
     } else {
-      const e = await res.json()
-      toast.error(e.error ?? 'Failed to create user')
+      const err = await res.json().catch(() => ({ error: 'Failed to create user' }))
+      toast.error(err.error ?? 'Failed to create user')
     }
   }
 
@@ -101,7 +119,7 @@ export default function AdminPage() {
         ].map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key as any)}
+            onClick={() => setTab(t.key as 'users' | 'projects')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
               tab === t.key
                 ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm'
@@ -214,7 +232,10 @@ export default function AdminPage() {
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={() => setUserModal(false)} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mx-auto" /> : <><Plus className="w-3.5 h-3.5"/>Create user</>}
+              {saving
+                ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mx-auto" />
+                : <><Plus className="w-3.5 h-3.5" />Create user</>
+              }
             </button>
           </div>
         </form>
@@ -253,7 +274,10 @@ export default function AdminPage() {
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={() => setProjModal(false)} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">
-              {saving ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mx-auto" /> : <><Plus className="w-3.5 h-3.5"/>Create project</>}
+              {saving
+                ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin mx-auto" />
+                : <><Plus className="w-3.5 h-3.5" />Create project</>
+              }
             </button>
           </div>
         </form>

@@ -13,7 +13,7 @@ export async function GET() {
   const monthStart = startOfMonth(now)
   const monthEnd   = endOfMonth(now)
 
-  const userId = session.user.id
+  const userId    = session.user.id
   const isManager = ['MANAGER', 'ADMIN'].includes(session.user.role)
 
   // This week's hours
@@ -47,11 +47,10 @@ export async function GET() {
     },
   })
 
-  // Weekly data for chart (last 8 weeks)
+  // Weekly data for chart (last 8 weeks) — wEnd removed, not needed
   const weeklyData = []
   for (let i = 7; i >= 0; i--) {
     const wStart = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 })
-    const wEnd   = addDays(wStart, 6)
     const ts = await prisma.timesheet.findFirst({
       where: { userId, weekStart: wStart },
       include: { entries: true },
@@ -64,7 +63,7 @@ export async function GET() {
 
   // Project breakdown (this month)
   const allEntries = monthTimesheets.flatMap(t => t.entries)
-  const entryIds = allEntries.map(e => e.id)
+  const entryIds   = allEntries.map(e => e.id)
 
   const entriesWithProjects = await prisma.timesheetEntry.findMany({
     where: { id: { in: entryIds } },
