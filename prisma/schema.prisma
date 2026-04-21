@@ -1,0 +1,99 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          Role      @default(EMPLOYEE)
+  department    String?
+  avatarUrl     String?
+  managerId     String?
+  manager       User?     @relation("ManagerEmployees", fields: [managerId], references: [id])
+  employees     User[]    @relation("ManagerEmployees")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  timesheets    Timesheet[]
+  approvals     Timesheet[] @relation("ApprovedBy")
+
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  code        String   @unique
+  description String?
+  color       String   @default("#6366f1")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries     TimesheetEntry[]
+
+  @@map("projects")
+}
+
+model Timesheet {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  weekStart   DateTime        // Monday of the week
+  weekEnd     DateTime        // Sunday of the week
+  status      TimesheetStatus @default(DRAFT)
+  totalHours  Float           @default(0)
+  notes       String?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  reviewer    User?           @relation("ApprovedBy", fields: [reviewedBy], references: [id])
+  reviewNotes String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  entries     TimesheetEntry[]
+
+  @@unique([userId, weekStart])
+  @@map("timesheets")
+}
+
+model TimesheetEntry {
+  id           String    @id @default(cuid())
+  timesheetId  String
+  timesheet    Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id])
+  date         DateTime
+  hours        Float
+  description  String?
+  isBillable   Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("timesheet_entries")
+}
