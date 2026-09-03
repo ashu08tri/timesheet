@@ -1,0 +1,150 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { endOfWeek } from 'date-fns'
+import { Prisma, TimesheetStatus } from '@prisma/client'
+
+export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { searchParams } = new URL(req.url)
+  const userId   = searchParams.get('userId')
+  const status   = searchParams.get('status')
+  const teamOnly = searchParams.get('team') === 'true'
+
+  const resolvedUserId =
+    userId === 'me' ? session.user.id : userId
+
+  const where: Prisma.TimesheetWhereInput = {}
+
+  // 🔹 Role-based filtering
+  if (session.user.role === 'EMPLOYEE') {
+    where.userId = session.user.id
+
+  } else if (teamOnly && session.user.role === 'MANAGER') {
+    const employees = await prisma.user.findMany({
+      where: { managerId: session.user.id },
+      select: { id: true },
+    })
+
+    where.userId = { in: employees.map(e => e.id) }
+
+  } else if (teamOnly && session.user.role === 'ADMIN') {
+    // no filter → fetch all
+
+  } else if (resolvedUserId) {
+    where.userId = resolvedUserId
+
+  } else {
+    where.userId = session.user.id
+  }
+
+  // 🔹 Status filter (safe enum check)
+  if (
+    status &&
+    Object.values(TimesheetStatus).includes(status as TimesheetStatus)
+  ) {
+    where.status = status as TimesheetStatus
+  }
+
+  const timesheets = await prisma.timesheet.findMany({
+    where,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          department: true,
+          avatarUrl: true,
+        },
+      },
+      reviewer: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          department: true,
+          avatarUrl: true,
+        },
+      },
+      entries: {
+        include: {
+          project: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              color: true,
+            },
+          },
+          entryType: { select: { id: true, name: true } },
+        },
+        orderBy: { date: 'asc' },
+      },
+    },
+    orderBy: { weekStart: 'desc' },
+  })
+
+  return NextResponse.json(timesheets)
+}
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { weekStart: weekStartStr } = await req.json()
+
+  const weekStart = new Date(weekStartStr)
+  const weekEnd   = endOfWeek(weekStart, { weekStartsOn: 1 })
+
+  const existing = await prisma.timesheet.findUnique({
+    where: {
+      userId_weekStart: {
+        userId: session.user.id,
+        weekStart,
+      },
+    },
+  })
+
+  if (existing) {
+    return NextResponse.json(existing)
+  }
+
+  const timesheet = await prisma.timesheet.create({
+    data: {
+      userId: session.user.id,
+      weekStart,
+      weekEnd,
+      status: TimesheetStatus.DRAFT, // ✅ use enum instead of string
+      totalHours: 0,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          department: true,
+          avatarUrl: true,
+        },
+      },
+      entries: {
+        include: {
+          project: true,
+        },
+      },
+    },
+  })
+
+  return NextResponse.json(timesheet)
+}

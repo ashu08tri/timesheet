@@ -1,0 +1,446 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum EngagementType {
+  PERMANENT
+  TEMPORARY
+  CONTRACT
+}
+
+enum AccessStatus {
+  ACTIVE
+  BLOCKED
+}
+
+enum TimesheetStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REVERTED
+}
+
+enum ApprovalActionType {
+  APPROVE
+  REVERT
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum WeekDay {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+// Which category of hours a workflow governs. DEFAULT is the standard day-to-day
+// timesheet approval flow; the others let the Company Admin define a different
+// approval flow for each special case, as the doc requires.
+enum WorkflowType {
+  DEFAULT
+  OVERTIME
+  WEEKEND
+  LEAVE
+  ESCALATION
+  HOLIDAY
+}
+
+// The four entry types every project starts with, and can never delete or edit.
+// Anything beyond these (Sick Leave, Travel for Work, etc.) is a custom entry type.
+enum SystemEntryType {
+  STANDARD
+  OVERTIME
+  WEEKEND
+  HOLIDAY
+}
+
+// Platform-level user (not scoped to any company). Manages companies & plans.
+model SuperAdmin {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("super_admins")
+}
+
+// A subscribable plan, defined by the platform (e.g. Free, Plan A, Plan B).
+model Plan {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  maxProjects     Int
+  maxUsers        Int
+  monthlyPrice    Float
+  annualPrice     Float
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  subscriptions   Subscription[]
+
+  @@map("plans")
+}
+
+// One company's (tenant's) active/historical subscription to a plan.
+model Subscription {
+  id                 String             @id @default(cuid())
+  companyId          String             @unique
+  company            Company            @relation(fields: [companyId], references: [id])
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id])
+  billingCycle       BillingCycle       @default(MONTHLY)
+  status             SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@map("subscriptions")
+}
+
+// A subscribing company (tenant). All company-scoped data hangs off this.
+model Company {
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  subscription  Subscription?
+  users         User[]
+  projects      Project[]
+  projectRoles  ProjectRole[]
+
+  @@map("companies")
+}
+
+// Role Master: company-defined roles used for project membership (e.g. Employee,
+// Project Manager, Verifier). "Employee" and "Project Manager" are seeded per company
+// and cannot be deleted (isSystem); Project Manager's name is editable, others can be
+// freely added by the Company Admin.
+model ProjectRole {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  name      String
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships ProjectMembershipRole[]
+  workflowStages WorkflowStage[]
+
+  @@unique([companyId, name])
+  @@map("project_roles")
+}
+
+// A user's membership on a project, with a start date. A membership can carry one or
+// more roles (via ProjectMembershipRole), matching the "select role(s) of team member"
+// requirement.
+model ProjectMembership {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles     ProjectMembershipRole[]
+
+  @@unique([projectId, userId])
+  @@map("project_memberships")
+}
+
+model ProjectMembershipRole {
+  id           String            @id @default(cuid())
+  membershipId String
+  membership   ProjectMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  roleId       String
+  role         ProjectRole       @relation(fields: [roleId], references: [id])
+
+  @@unique([membershipId, roleId])
+  @@map("project_membership_roles")
+}
+
+// User Master activity log: logins, views, role switches, submits, saves — everything,
+// not just timesheet actions.
+// Forgot-password: a short-lived token, e-mailed (or shown directly in dev, since no
+// SMTP provider is configured) to the user, that lets them set a new password once.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model UserActivityLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String   // e.g. "LOGIN", "VIEW_TIMESHEET", "ROLE_SWITCH", "SUBMIT_ENTRY"
+  detail    String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("user_activity_logs")
+}
+
+model User {
+  id               String          @id @default(cuid())
+  companyId        String
+  company          Company         @relation(fields: [companyId], references: [id])
+  name             String
+  username         String
+  email            String?
+  password         String
+  role             Role            @default(EMPLOYEE)
+  department       String?
+  avatarUrl        String?
+  managerId        String?
+  manager          User?           @relation("ManagerEmployees", fields: [managerId], references: [id])
+  employees        User[]          @relation("ManagerEmployees")
+
+  // User Master fields
+  contactNumber    String?
+  contactAddress   String?
+  engagementType   EngagementType?
+  engagementStart  DateTime?
+  accessStatus     AccessStatus    @default(ACTIVE)
+  lastLoginAt      DateTime?
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  timesheets       Timesheet[]
+  approvals        Timesheet[]     @relation("ApprovedBy")
+  approvalActions  ApprovalAction[]
+  projectMemberships ProjectMembership[]
+  activityLogs     UserActivityLog[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@unique([companyId, email])
+  @@unique([companyId, username])
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  name        String
+  code        String
+  description String?
+  color       String   @default("#6366f1")
+  isActive    Boolean  @default(true)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Hour Config
+  standardDayHours    Float   @default(8)
+  minWeekHoursEnabled Boolean @default(false)
+  minWeekHours        Float?
+
+  entries       TimesheetEntry[]
+  memberships   ProjectMembership[]
+  weekends      ProjectWeekend[]
+  holidays      Holiday[]
+  entryTypes    EntryType[]
+  workflows     ApprovalWorkflow[]
+  timesheets    Timesheet[]
+
+  @@unique([companyId, code])
+  @@map("projects")
+}
+
+// Which days of the week count as a weekend for this project.
+model ProjectWeekend {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  day       WeekDay
+
+  @@unique([projectId, day])
+  @@map("project_weekends")
+}
+
+// Project holidays. isRecurring marks a date (month/day) as a holiday every year.
+model Holiday {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  date        DateTime
+  details     String
+  isRecurring Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("holidays")
+}
+
+// Entry Types Allowed: Standard/Overtime/Weekend/Holiday are seeded per project and
+// locked (isSystem = cannot delete or edit). Company Admin can add more (short code +
+// name), e.g. Sick Leave, Personal Leave, Emergency Leave, Travel for Work.
+model EntryType {
+  id              String           @id @default(cuid())
+  projectId       String
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  shortCode       String
+  isSystem        Boolean          @default(false)
+  systemType      SystemEntryType?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  entries         TimesheetEntry[]
+
+  @@unique([projectId, shortCode])
+  @@map("entry_types")
+}
+
+// Approval Workflow config: one workflow per (project, type). The default workflow
+// applies to normal daily/weekly submission; the others (Overtime/Weekend/Leave/
+// Escalation/Holiday) can be configured separately if the Admin selects those types.
+// The first stage is always the Employee and the last stage is always Closed — those
+// are represented implicitly (isTerminal = true marks the Closed stage); stages in
+// between reference a Role Master role.
+model ApprovalWorkflow {
+  id        String         @id @default(cuid())
+  projectId String
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      WorkflowType
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  stages    WorkflowStage[]
+
+  @@unique([projectId, type])
+  @@map("approval_workflows")
+}
+
+model WorkflowStage {
+  id         String           @id @default(cuid())
+  workflowId String
+  workflow   ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  order      Int
+  roleId     String?
+  role       ProjectRole?     @relation(fields: [roleId], references: [id])
+  isTerminal Boolean          @default(false) // true = the "Closed" stage
+
+  @@unique([workflowId, order])
+  @@map("workflow_stages")
+}
+
+model Timesheet {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  weekStart   DateTime        // Monday of the week
+  weekEnd     DateTime        // Sunday of the week
+  status      TimesheetStatus @default(DRAFT)
+  totalHours  Float           @default(0)
+  notes       String?
+  submittedAt DateTime?
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  reviewer    User?           @relation("ApprovedBy", fields: [reviewedBy], references: [id])
+  reviewNotes String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Workflow tracking: which project's workflow (and which type of it — Default,
+  // Overtime, etc.) this week is being routed through, and how far along it is.
+  // projectId/workflowType are set at submit time. currentStageOrder = 0 means the
+  // week is still with the Employee (not yet at a reviewer stage); it advances by 1
+  // each time a stage approves, and resets to 0 on revert so resubmission restarts
+  // the flow, per the doc.
+  projectId        String?
+  project          Project?     @relation(fields: [projectId], references: [id])
+  workflowType     WorkflowType @default(DEFAULT)
+  currentStageOrder Int         @default(0)
+
+  entries         TimesheetEntry[]
+  approvalActions ApprovalAction[]
+
+  @@unique([userId, weekStart])
+  @@map("timesheets")
+}
+
+// Audit trail of every approve/revert action taken on a timesheet, with who did it,
+// at which stage, and their comments — this is what powers the "Reverted Entries"
+// table and the "comments by project manager or verifiers" requirement.
+model ApprovalAction {
+  id          String             @id @default(cuid())
+  timesheetId String
+  timesheet   Timesheet          @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  stageOrder  Int
+  actorId     String
+  actor       User               @relation(fields: [actorId], references: [id])
+  action      ApprovalActionType
+  comments    String?
+  createdAt   DateTime           @default(now())
+
+  @@map("approval_actions")
+}
+
+model TimesheetEntry {
+  id              String     @id @default(cuid())
+  timesheetId     String
+  timesheet       Timesheet  @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project    @relation(fields: [projectId], references: [id])
+  entryTypeId     String?
+  entryType       EntryType? @relation(fields: [entryTypeId], references: [id])
+  date            DateTime
+  hours           Float
+  description     String?
+  isBillable      Boolean    @default(true)
+  // True for the Overtime entry the system auto-creates when a weekday's Standard
+  // hours exceed the project's standard day hours — not directly user-editable.
+  isAutoGenerated Boolean    @default(false)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("timesheet_entries")
+}
