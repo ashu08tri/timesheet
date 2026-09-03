@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { WorkflowType } from '@prisma/client'
+import { WorkflowType, WorkflowStage } from '@prisma/client'
 
 /**
  * Picks which project (and therefore which project's workflow) governs a timesheet,
@@ -57,6 +57,8 @@ export async function userHasProjectRole(userId: string, projectId: string, role
 }
 
 /** The stage a timesheet is currently waiting on (undefined once past the last stage). */
-export function stageAtOrder(stages: { order: number }[], order: number) {
+/** The stage a timesheet is currently waiting on (undefined once past the last stage). */
+export function stageAtOrder(stages: WorkflowStage[], order: number) {
   return stages.find(s => s.order === order)
 }
+

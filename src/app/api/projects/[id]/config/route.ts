@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { WeekDay } from '@prisma/client'
 
 async function getOwnedProject(companyId: string, projectId: string) {
   return prisma.project.findFirst({ where: { id: projectId, companyId } })
@@ -52,7 +53,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await prisma.projectWeekend.deleteMany({ where: { projectId: id } })
     if (weekendDays.length) {
       await prisma.projectWeekend.createMany({
-        data: weekendDays.map((day: string) => ({ projectId: id, day })),
+        data: weekendDays.map((day: string) => ({
+          projectId: id,
+          day: day as WeekDay,
+        })),
       })
     }
   }
