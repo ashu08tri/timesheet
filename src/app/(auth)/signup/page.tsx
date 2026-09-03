@@ -210,12 +210,13 @@ export default function SignupPage() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1.5">
-                Email <span className="text-gray-600 normal-case">(optional)</span>
+                Email 
               </label>
               <input
                 type="email" value={adminEmail} onChange={e => setAdminEmail(e.target.value)}
                 placeholder="alex@acme.com"
                 className="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder:text-gray-600 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                required
               />
             </div>
             <div>
